@@ -183,7 +183,7 @@ __facade__originalAddEventListener__("fetch", (event) => {
 			});
 
 			__FACADE_EVENT_TARGET__.dispatchEvent(facadeEvent);
-			event.waitUntil(Promise.all(facadeEvent[__facade_waitUntil__]));
+			event.waitUntil(void Promise.all(facadeEvent[__facade_waitUntil__]));
 		}
 	};
 
@@ -195,7 +195,7 @@ __facade__originalAddEventListener__("fetch", (event) => {
 
 		__FACADE_EVENT_TARGET__.dispatchEvent(facadeEvent);
 		facadeEvent[__facade_dispatched__] = true;
-		event.waitUntil(Promise.all(facadeEvent[__facade_waitUntil__]));
+		event.waitUntil(void Promise.all(facadeEvent[__facade_waitUntil__]));
 
 		const response = facadeEvent[__facade_response__];
 		if (response === undefined) {
@@ -223,5 +223,5 @@ __facade__originalAddEventListener__("scheduled", (event) => {
 	});
 
 	__FACADE_EVENT_TARGET__.dispatchEvent(facadeEvent);
-	event.waitUntil(Promise.all(facadeEvent[__facade_waitUntil__]));
+	event.waitUntil(void Promise.all(facadeEvent[__facade_waitUntil__]));
 });
