@@ -105,7 +105,9 @@ export async function unstable_dev(
 				const absolutePath = path.resolve(relativePath);
 				logger.log("relativePath: ", relativePath);
 				logger.log("absolutePath: ", absolutePath);
-				logger.log("callsites: ", callsites());
+				callsites().forEach((callsite) => {
+					logger.log("callsite: ", callsite.getFileName());
+				});
 
 				const devServer = startApiDev({
 					script: absolutePath,
