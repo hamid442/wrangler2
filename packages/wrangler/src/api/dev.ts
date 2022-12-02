@@ -104,6 +104,7 @@ export async function unstable_dev(
 				const absolutePath = path.resolve(relativePath);
 				logger.log("relativePath: ", relativePath);
 				logger.log("absolutePath: ", absolutePath);
+				logger.log("require?.main?.path: ", require?.main?.path);
 				const devServer = startApiDev({
 					script: absolutePath,
 					inspect: false,
