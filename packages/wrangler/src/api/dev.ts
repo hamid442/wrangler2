@@ -1,8 +1,8 @@
 import path from "node:path";
+import callerCallsite from "caller-callsite";
 import { fetch, Request } from "undici";
 import { startApiDev, startDev } from "../dev";
 import { logger } from "../logger";
-import { getBasePath } from "../paths";
 
 import type { Environment } from "../config";
 import type { EnablePagesAssetsServiceBindingOptions } from "../miniflare-cli";
@@ -105,7 +105,7 @@ export async function unstable_dev(
 				const absolutePath = path.resolve(relativePath);
 				logger.log("relativePath: ", relativePath);
 				logger.log("absolutePath: ", absolutePath);
-				logger.log(getBasePath());
+				logger.log(callerCallsite()?.getFileName());
 
 				const devServer = startApiDev({
 					script: absolutePath,
