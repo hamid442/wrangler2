@@ -1,5 +1,4 @@
 import path from "node:path";
-import callsites from "callsites";
 import { fetch, Request } from "undici";
 import { startApiDev, startDev } from "../dev";
 import { logger } from "../logger";
@@ -105,9 +104,7 @@ export async function unstable_dev(
 				const absolutePath = path.resolve(relativePath);
 				logger.log("relativePath: ", relativePath);
 				logger.log("absolutePath: ", absolutePath);
-				callsites().forEach((callsite) => {
-					logger.log("callsite: ", callsite.getFileName());
-				});
+				logger.log("process.cwd", process.cwd());
 
 				const devServer = startApiDev({
 					script: absolutePath,

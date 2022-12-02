@@ -104,7 +104,6 @@
 		"@miniflare/d1": "2.10.0",
 		"@miniflare/durable-objects": "2.10.0",
 		"blake3-wasm": "^2.1.5",
-		"callsites": "^4.0.0",
 		"chokidar": "^3.5.3",
 		"esbuild": "0.14.51",
 		"install": "^0.13.0",
