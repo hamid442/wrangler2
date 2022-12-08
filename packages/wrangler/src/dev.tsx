@@ -512,6 +512,7 @@ export async function startDev(args: StartDevOptions) {
 			);
 		}
 		const devReactElement = render(await getDevReactElement(config));
+		devReactElement.waitUntilExit().then(() => process.disconnect?.()); // TODO: remove and rebase
 		rerender = devReactElement.rerender;
 		return {
 			devReactElement,
