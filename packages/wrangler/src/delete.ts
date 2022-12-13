@@ -1,7 +1,7 @@
 import assert from "assert";
 import path from "path";
 import { fetchResult } from "./cfetch";
-import { findWranglerToml, readConfig } from "./config";
+import { findWranglerConfig, readConfig } from "./config";
 import { confirm } from "./dialogs";
 import { CI } from "./is-ci";
 import isInteractive from "./is-interactive";
@@ -47,7 +47,7 @@ export async function deleteHandler(args: DeleteArgs) {
 
 	const configPath =
 		(args.config as ConfigPath) ||
-		(args.script && findWranglerToml(path.dirname(args.script)));
+		(args.script && findWranglerConfig(path.dirname(args.script)));
 	const config = readConfig(configPath, args);
 	await metrics.sendMetricsEvent(
 		"delete worker script",

@@ -4,7 +4,7 @@ import { watch } from "chokidar";
 import getPort from "get-port";
 import { render } from "ink";
 import React from "react";
-import { findWranglerToml, printBindings, readConfig } from "./config";
+import { findWranglerConfig, printBindings, readConfig } from "./config";
 import Dev from "./dev/dev";
 import { getVarsForDev } from "./dev/dev-vars";
 import { getLocalPersistencePath } from "./dev/get-local-persistence-path";
@@ -401,7 +401,7 @@ export async function startDev(args: StartDevOptions) {
 		const configPath =
 			(args.config as ConfigPath) ||
 			((args.script &&
-				findWranglerToml(path.dirname(args.script))) as ConfigPath);
+				findWranglerConfig(path.dirname(args.script))) as ConfigPath);
 		let config = readConfig(configPath, args);
 
 		if (config.configPath) {
@@ -535,7 +535,7 @@ export async function startApiDev(args: StartDevOptions) {
 	const configPath =
 		(args.config as ConfigPath) ||
 		((args.script &&
-			findWranglerToml(path.dirname(args.script))) as ConfigPath);
+			findWranglerConfig(path.dirname(args.script))) as ConfigPath);
 	const config = readConfig(configPath, args);
 
 	const {

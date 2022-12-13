@@ -1,5 +1,5 @@
 import path from "node:path";
-import { findWranglerToml, readConfig } from "../config";
+import { findWranglerConfig, readConfig } from "../config";
 import { getEntry } from "../entry";
 import {
 	getRules,
@@ -186,7 +186,7 @@ export async function publishHandler(args: ArgumentsCamelCase<PublishArgs>) {
 
 	const configPath =
 		(args.config as ConfigPath) ||
-		(args.script && findWranglerToml(path.dirname(args.script)));
+		(args.script && findWranglerConfig(path.dirname(args.script)));
 	const config = readConfig(configPath, args);
 	const entry = await getEntry(args, config, "publish");
 	await metrics.sendMetricsEvent(

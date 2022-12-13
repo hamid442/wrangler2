@@ -60,7 +60,6 @@ const resetColor = "\x1b[0m";
 const fgGreenColor = "\x1b[32m";
 export const DEFAULT_LOCAL_PORT = 8787;
 export const DEFAULT_INSPECTOR_PORT = 9229;
-
 const proxy =
 	process.env.https_proxy ||
 	process.env.HTTPS_PROXY ||
