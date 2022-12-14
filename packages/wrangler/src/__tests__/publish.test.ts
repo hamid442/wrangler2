@@ -6751,15 +6751,32 @@ addEventListener('fetch', event => {});`
 		});
 
 		describe("unit tests", () => {
+			const env = process.env;
+
+			beforeEach(() => {
+				jest.resetModules();
+				process.env = { ...env };
+			});
+
+			afterEach(() => {
+				process.env = env;
+			});
 			// keeping these as unit tests to try and keep them snappy, as they often deal with
 			// big files that would take a while to deal with in a full wrangler test
 
 			test("should print the bundle size and warn about large scripts when > 1MiB", async () => {
 				const bigModule = Buffer.alloc(10_000_000);
 				randomFillSync(bigModule);
-				await printBundleSize({ name: "index.js", content: "" }, [
-					{ name: "index.js", content: bigModule, type: "buffer" },
-				]);
+				await printBundleSize(
+					{ name: "index.js", content: "import * from './module'" },
+					[
+						{
+							name: "module.js",
+							content: Buffer.from(randomFillSync(new Uint8Array(10_000_000))),
+							type: "buffer",
+						},
+					]
+				);
 
 				expect(std).toMatchInlineSnapshot(`
 			Object {
@@ -6774,7 +6791,6 @@ addEventListener('fetch', event => {});`
 			});
 
 			test("should not warn about bundle sizes when NO_SCRIPT_SIZE_WARNING is set", async () => {
-				const previousValue = process.env.NO_SCRIPT_SIZE_WARNING;
 				process.env.NO_SCRIPT_SIZE_WARNING = "true";
 
 				const bigModule = Buffer.alloc(10_000_000);
@@ -6791,8 +6807,6 @@ addEventListener('fetch', event => {});`
 			  "warn": "",
 			}
 		`);
-
-				process.env.NO_SCRIPT_SIZE_WARNING = previousValue;
 			});
 
 			test("should print the top biggest dependencies in the bundle when upload fails", () => {
