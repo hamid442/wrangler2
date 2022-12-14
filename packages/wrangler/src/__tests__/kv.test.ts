@@ -22,8 +22,42 @@ import type {
 	KVNamespaceInfo,
 	NamespaceKeyInfo,
 } from "../kv/helpers";
+import {
+	writeWranglerJson,
+	writeWranglerToml,
+} from "./helpers/write-wrangler-toml";
 
-describe("wrangler", () => {
+function writeExact(
+	writer: typeof writeWranglerJson | typeof writeWranglerToml
+) {
+	return () =>
+		writer({
+			name: "other-worker",
+			kv_namespaces: [
+				{
+					binding: "someBinding",
+					id: "bound-id",
+					preview_id: "preview-bound-id",
+				},
+			],
+			env: {
+				"some-environment": {
+					kv_namespaces: [
+						{
+							binding: "someBinding",
+							id: "env-bound-id",
+							preview_id: "preview-env-bound-id",
+						},
+					],
+				},
+			},
+		});
+}
+
+describe.each([
+	["wrangler.toml", writeExact(writeWranglerToml)],
+	["wrangler.json", writeExact(writeWranglerJson)],
+])("wrangler (%s)", (_, writeWranglerConfig) => {
 	mockAccountId();
 	mockApiToken();
 	runInTempDir();
@@ -1655,21 +1689,3 @@ describe("wrangler", () => {
 		});
 	});
 });
-
-function writeWranglerConfig() {
-	writeFileSync(
-		"./wrangler.toml",
-		[
-			'name = "other-worker"',
-			"kv_namespaces = [",
-			'  { binding = "someBinding", id = "bound-id", preview_id = "preview-bound-id" }',
-			"]",
-			"",
-			"[env.some-environment]",
-			"kv_namespaces = [",
-			'  { binding = "someBinding", id = "env-bound-id", preview_id = "preview-env-bound-id" }',
-			"]",
-		].join("\n"),
-		"utf-8"
-	);
-}

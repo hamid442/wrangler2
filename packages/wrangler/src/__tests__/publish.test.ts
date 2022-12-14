@@ -31,7 +31,10 @@ import { mockGetMemberships, mockOAuthFlow } from "./helpers/mock-oauth-flow";
 import { runInTempDir } from "./helpers/run-in-tmp";
 import { runWrangler } from "./helpers/run-wrangler";
 import { writeWorkerSource } from "./helpers/write-worker-source";
-import writeWranglerToml from "./helpers/write-wrangler-toml";
+import {
+	writeWranglerJson,
+	writeWranglerToml,
+} from "./helpers/write-wrangler-toml";
 import type { Config } from "../config";
 import type { WorkerMetadata } from "../create-worker-upload-form";
 import type { KVNamespaceInfo } from "../kv/helpers";
@@ -40,7 +43,10 @@ import type { PutConsumerBody } from "../queues/client";
 import type { CfWorkerInit } from "../worker";
 import type { FormData, File } from "undici";
 
-describe("publish", () => {
+describe.each([
+	["wrangler.toml", writeWranglerToml],
+	["wrangler.json", writeWranglerJson],
+])("publish (%s)", (configName, writeWranglerConfig) => {
 	mockAccountId();
 	mockApiToken();
 	runInTempDir();
@@ -82,16 +88,11 @@ describe("publish", () => {
 
 		it("for first party workers, it should print worker information at log level", async () => {
 			setIsTTY(false);
-			fs.writeFileSync(
-				"./wrangler.toml",
-				TOML.stringify({
-					compatibility_date: "2022-01-12",
-					name: "test-name",
-					first_party_worker: true,
-				}),
-
-				"utf-8"
-			);
+			writeWranglerConfig({
+				compatibility_date: "2022-01-12",
+				name: "test-name",
+				first_party_worker: true,
+			});
 			writeWorkerSource();
 			mockSubDomainRequest();
 			mockUploadWorkerRequest({ expectedType: "esm", sendScriptIds: true });
@@ -122,7 +123,7 @@ describe("publish", () => {
 		});
 
 		it("drops a user into the login flow if they're unauthenticated", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			writeWorkerSource();
 			mockSubDomainRequest();
 			mockUploadWorkerRequest();
@@ -151,7 +152,7 @@ describe("publish", () => {
 		});
 
 		it("warns a user when they're authenticated with an API token in wrangler config file", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			writeWorkerSource();
 			mockSubDomainRequest();
 			mockUploadWorkerRequest();
@@ -192,7 +193,7 @@ describe("publish", () => {
 					CLOUDFLARE_API_TOKEN: "123456789",
 				};
 				setIsTTY(false);
-				writeWranglerToml({
+				writeWranglerConfig({
 					account_id: "some-account-id",
 				});
 				writeWorkerSource();
@@ -218,7 +219,7 @@ describe("publish", () => {
 					CLOUDFLARE_ACCOUNT_ID: "some-account-id",
 				};
 				setIsTTY(false);
-				writeWranglerToml();
+				writeWranglerConfig();
 				writeWorkerSource();
 				mockSubDomainRequest();
 				mockUploadWorkerRequest();
@@ -243,7 +244,7 @@ describe("publish", () => {
 					CLOUDFLARE_API_TOKEN: "hunter2",
 					CLOUDFLARE_ACCOUNT_ID: undefined,
 				};
-				writeWranglerToml({
+				writeWranglerConfig({
 					account_id: undefined,
 				});
 				writeWorkerSource();
@@ -267,7 +268,7 @@ describe("publish", () => {
 
 			it("should throw error in non-TTY if 'CLOUDFLARE_API_TOKEN' is missing", async () => {
 				setIsTTY(false);
-				writeWranglerToml({
+				writeWranglerConfig({
 					account_id: undefined,
 				});
 				process.env = {
@@ -293,7 +294,7 @@ describe("publish", () => {
 			});
 			it("should throw error with no account ID provided and no members retrieved", async () => {
 				setIsTTY(false);
-				writeWranglerToml({
+				writeWranglerConfig({
 					account_id: undefined,
 				});
 				process.env = {
@@ -322,7 +323,7 @@ describe("publish", () => {
 
 	describe("environments", () => {
 		it("should use legacy environments by default", async () => {
-			writeWranglerToml({ env: { "some-env": {} } });
+			writeWranglerConfig({ env: { "some-env": {} } });
 			writeWorkerSource();
 			mockSubDomainRequest();
 			mockUploadWorkerRequest({
@@ -343,7 +344,7 @@ describe("publish", () => {
 
 		describe("legacy", () => {
 			it("uses the script name when no environment is specified", async () => {
-				writeWranglerToml();
+				writeWranglerConfig();
 				writeWorkerSource();
 				mockSubDomainRequest();
 				mockUploadWorkerRequest({
@@ -362,7 +363,7 @@ describe("publish", () => {
 			});
 
 			it("appends the environment name when provided, and there is associated config", async () => {
-				writeWranglerToml({ env: { "some-env": {} } });
+				writeWranglerConfig({ env: { "some-env": {} } });
 				writeWorkerSource();
 				mockSubDomainRequest();
 				mockUploadWorkerRequest({
@@ -382,7 +383,7 @@ describe("publish", () => {
 			});
 
 			it("appends the environment name when provided (with a warning), if there are no configured environments", async () => {
-				writeWranglerToml({});
+				writeWranglerConfig({});
 				writeWorkerSource();
 				mockSubDomainRequest();
 				mockUploadWorkerRequest({
@@ -399,7 +400,7 @@ describe("publish", () => {
 		`);
 				expect(std.err).toMatchInlineSnapshot(`""`);
 				expect(std.warn).toMatchInlineSnapshot(`
-			          "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			          "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			              - No environment found in configuration with name \\"some-env\\".
 			                Before using \`--env=some-env\` there should be an equivalent environment section in the
@@ -416,13 +417,13 @@ describe("publish", () => {
 			});
 
 			it("should throw an error when an environment name when provided, which doesn't match those in the config", async () => {
-				writeWranglerToml({ env: { "other-env": {} } });
+				writeWranglerConfig({ env: { "other-env": {} } });
 				writeWorkerSource();
 				mockSubDomainRequest();
 				await expect(
 					runWrangler("publish index.js --env some-env --legacy-env true")
 				).rejects.toThrowErrorMatchingInlineSnapshot(`
-			                "Processing wrangler.toml configuration:
+			                "Processing ${configName} configuration:
 			                  - No environment found in configuration with name \\"some-env\\".
 			                    Before using \`--env=some-env\` there should be an equivalent environment section in the configuration.
 			                    The available configured environment names are: [\\"other-env\\"]
@@ -436,7 +437,7 @@ describe("publish", () => {
 			});
 
 			it("should throw an error w/ helpful message when using --env --name", async () => {
-				writeWranglerToml({ env: { "some-env": {} } });
+				writeWranglerConfig({ env: { "some-env": {} } });
 				writeWorkerSource();
 				mockSubDomainRequest();
 				await runWrangler(
@@ -454,7 +455,7 @@ describe("publish", () => {
 
 		describe("services", () => {
 			it("uses the script name when no environment is specified", async () => {
-				writeWranglerToml();
+				writeWranglerConfig();
 				writeWorkerSource();
 				mockSubDomainRequest();
 				mockUploadWorkerRequest({
@@ -470,7 +471,7 @@ describe("publish", () => {
 		`);
 				expect(std.err).toMatchInlineSnapshot(`""`);
 				expect(std.warn).toMatchInlineSnapshot(`
-			          "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			          "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			              - Experimental: Service environments are in beta, and their behaviour is guaranteed to change in
 			            the future. DO NOT USE IN PRODUCTION.
@@ -480,7 +481,7 @@ describe("publish", () => {
 			});
 
 			it("publishes as an environment when provided", async () => {
-				writeWranglerToml({ env: { "some-env": {} } });
+				writeWranglerConfig({ env: { "some-env": {} } });
 				writeWorkerSource();
 				mockSubDomainRequest();
 				mockUploadWorkerRequest({
@@ -497,7 +498,7 @@ describe("publish", () => {
 		`);
 				expect(std.err).toMatchInlineSnapshot(`""`);
 				expect(std.warn).toMatchInlineSnapshot(`
-			          "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			          "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			              - Experimental: Service environments are in beta, and their behaviour is guaranteed to change in
 			            the future. DO NOT USE IN PRODUCTION.
@@ -510,14 +511,13 @@ describe("publish", () => {
 
 	it("should resolve wrangler.toml relative to the entrypoint", async () => {
 		fs.mkdirSync("./some-path/worker", { recursive: true });
-		fs.writeFileSync(
-			"./some-path/wrangler.toml",
-			TOML.stringify({
+		writeWranglerConfig(
+			{
 				name: "test-name",
 				compatibility_date: "2022-01-12",
 				vars: { xyz: 123 },
-			}),
-			"utf-8"
+			},
+			"./some-path"
 		);
 		writeWorkerSource({ basePath: "./some-path/worker" });
 		mockUploadWorkerRequest({
@@ -547,7 +547,7 @@ describe("publish", () => {
 
 	describe("routes", () => {
 		it("should publish the worker to a route", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				routes: ["example.com/some-route/*"],
 			});
 			writeWorkerSource();
@@ -558,7 +558,7 @@ describe("publish", () => {
 		});
 
 		it("should publish with an empty string route", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				route: "",
 			});
 			writeWorkerSource();
@@ -576,7 +576,7 @@ describe("publish", () => {
 			Published test-name (TIMINGS)
 			  https://test-name.test-sub-domain.workers.dev
 			Current Deployment ID: undefined",
-			  "warn": "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			  "warn": "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			    - The \\"route\\" field in your configuration is an empty string and will be ignored.
 			      Please remove the \\"route\\" field from your configuration.
@@ -586,7 +586,7 @@ describe("publish", () => {
 		`);
 		});
 		it("should publish to a route with a pattern/{zone_id|zone_name} combo", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				routes: [
 					"some-example.com/some-route/*",
 					{ pattern: "*a-boring-website.com", zone_id: "54sdf7fsda" },
@@ -633,7 +633,7 @@ describe("publish", () => {
 		});
 
 		it("should publish to a route with a pattern/{zone_id|zone_name} combo (service environments)", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				env: {
 					staging: {
 						routes: [
@@ -689,7 +689,7 @@ describe("publish", () => {
 			  example.com/some-route/* (zone id: JGHFHG654gjcj)
 			  more-examples.com/*
 			Current Deployment ID: undefined",
-			  "warn": "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			  "warn": "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			    - Experimental: Service environments are in beta, and their behaviour is guaranteed to change in
 			  the future. DO NOT USE IN PRODUCTION.
@@ -700,7 +700,7 @@ describe("publish", () => {
 		});
 
 		it("should publish to legacy environment specific routes", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				routes: ["example.com/some-route/*"],
 				env: {
 					dev: {
@@ -724,7 +724,7 @@ describe("publish", () => {
 		});
 
 		it("services: should publish to service environment specific routes", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				routes: ["example.com/some-route/*"],
 				env: {
 					dev: {
@@ -746,7 +746,7 @@ describe("publish", () => {
 		});
 
 		it("should fallback to the Wrangler 1 zone-based API if the bulk-routes API fails", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				routes: ["example.com/some-route/*"],
 			});
 			writeWorkerSource();
@@ -796,7 +796,7 @@ describe("publish", () => {
 		});
 
 		it("should error if the bulk-routes API fails and trying to push to a non-production environment", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				routes: ["example.com/some-route/*"],
 				legacy_env: false,
 			});
@@ -826,7 +826,7 @@ describe("publish", () => {
 
 		describe("custom domains", () => {
 			it("should publish routes marked with 'custom_domain' as separate custom domains", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					routes: [{ pattern: "api.example.com", custom_domain: true }],
 				});
 				writeWorkerSource();
@@ -846,7 +846,7 @@ describe("publish", () => {
 			});
 
 			it("should confirm override if custom domain publish would override an existing domain", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					routes: [{ pattern: "api.example.com", custom_domain: true }],
 				});
 				writeWorkerSource();
@@ -891,7 +891,7 @@ Update them to point to this script instead?`,
 			});
 
 			it("should confirm override if custom domain publish contains a conflicting DNS record", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					routes: [{ pattern: "api.example.com", custom_domain: true }],
 				});
 				writeWorkerSource();
@@ -928,7 +928,7 @@ Update them to point to this script instead?`,
 			});
 
 			it("should confirm for conflicting custom domains and then again for conflicting dns", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					routes: [{ pattern: "api.example.com", custom_domain: true }],
 				});
 				writeWorkerSource();
@@ -992,7 +992,7 @@ Update them to point to this script instead?`,
 			});
 
 			it("should throw if an invalid custom domain is requested", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					routes: [{ pattern: "*.example.com", custom_domain: true }],
 				});
 				writeWorkerSource();
@@ -1002,7 +1002,7 @@ Update them to point to this script instead?`,
 					`"Cannot use \\"*.example.com\\" as a Custom Domain; wildcard operators (*) are not allowed"`
 				);
 
-				writeWranglerToml({
+				writeWranglerConfig({
 					routes: [
 						{ pattern: "api.example.com/at/a/path", custom_domain: true },
 					],
@@ -1016,7 +1016,7 @@ Update them to point to this script instead?`,
 			});
 
 			it("should not continue with publishing an override if user does not confirm", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					routes: [{ pattern: "api.example.com", custom_domain: true }],
 				});
 				writeWorkerSource();
@@ -1060,7 +1060,7 @@ Update them to point to this script instead?`,
 
 	describe("entry-points", () => {
 		it("should be able to use `index` with no extension as the entry-point (esm)", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			writeWorkerSource();
 			mockUploadWorkerRequest({ expectedType: "esm" });
 			mockSubDomainRequest();
@@ -1078,7 +1078,7 @@ Update them to point to this script instead?`,
 		});
 
 		it("should be able to use `index` with no extension as the entry-point (sw)", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			writeWorkerSource({ type: "sw" });
 			mockUploadWorkerRequest({ expectedType: "sw" });
 			mockSubDomainRequest();
@@ -1096,7 +1096,7 @@ Update them to point to this script instead?`,
 		});
 
 		it("should be able to use the `main` config as the entry-point for ESM sources", async () => {
-			writeWranglerToml({ main: "./index.js" });
+			writeWranglerConfig({ main: "./index.js" });
 			writeWorkerSource();
 			mockUploadWorkerRequest();
 			mockSubDomainRequest();
@@ -1114,7 +1114,7 @@ Update them to point to this script instead?`,
 		});
 
 		it("should use `main` relative to the wrangler.toml not cwd", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./foo/index.js",
 			});
 			writeWorkerSource({ basePath: "foo" });
@@ -1134,7 +1134,7 @@ Update them to point to this script instead?`,
 		});
 
 		it('should use `build.upload.main` as an entry point, where `build.upload.dir` defaults to "./dist", and log a deprecation warning', async () => {
-			writeWranglerToml({ build: { upload: { main: "./index.js" } } });
+			writeWranglerConfig({ build: { upload: { main: "./index.js" } } });
 			writeWorkerSource({ basePath: "./dist" });
 			mockUploadWorkerRequest();
 			mockSubDomainRequest();
@@ -1150,7 +1150,7 @@ Update them to point to this script instead?`,
 		`);
 			expect(std.err).toMatchInlineSnapshot(`""`);
 			expect(std.warn).toMatchInlineSnapshot(`
-			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			            - [1mDeprecation[0m: \\"build.upload.main\\":
 			              Delete the \`build.upload.main\` and \`build.upload.dir\` fields.
@@ -1164,7 +1164,7 @@ Update them to point to this script instead?`,
 		});
 
 		it("should use `build.upload.main` relative to `build.upload.dir`", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				build: {
 					upload: {
 						main: "./index.js",
@@ -1187,7 +1187,7 @@ Update them to point to this script instead?`,
 		`);
 			expect(std.err).toMatchInlineSnapshot(`""`);
 			expect(std.warn).toMatchInlineSnapshot(`
-			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ../wrangler.toml configuration:[0m
+			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ../${configName} configuration:[0m
 
 			            - [1mDeprecation[0m: \\"build.upload.main\\":
 			              Delete the \`build.upload.main\` and \`build.upload.dir\` fields.
@@ -1204,7 +1204,7 @@ Update them to point to this script instead?`,
 		});
 
 		it("should error when both `main` and `build.upload.main` are used", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				build: {
 					upload: {
@@ -1215,7 +1215,7 @@ Update them to point to this script instead?`,
 			});
 			await expect(runWrangler("publish")).rejects
 				.toThrowErrorMatchingInlineSnapshot(`
-			              "Processing wrangler.toml configuration:
+			              "Processing ${configName} configuration:
 			                - Don't define both the \`main\` and \`build.upload.main\` fields in your configuration.
 			                  They serve the same purpose: to point to the entry-point of your worker.
 			                  Delete the \`build.upload.main\` and \`build.upload.dir\` field from your config."
@@ -1223,7 +1223,7 @@ Update them to point to this script instead?`,
 		});
 
 		it("should be able to transpile TypeScript (esm)", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			writeWorkerSource({ format: "ts" });
 			mockUploadWorkerRequest({ expectedEntry: "var foo = 100;" });
 			mockSubDomainRequest();
@@ -1240,7 +1240,7 @@ Update them to point to this script instead?`,
 		});
 
 		it("should be able to transpile TypeScript (sw)", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			writeWorkerSource({ format: "ts", type: "sw" });
 			mockUploadWorkerRequest({
 				expectedEntry: "var foo = 100;",
@@ -1260,7 +1260,7 @@ Update them to point to this script instead?`,
 		});
 
 		it("should add referenced text modules into the form upload", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			fs.writeFileSync(
 				"./index.js",
 				`
@@ -1292,7 +1292,7 @@ export default{
 		});
 
 		it("should be able to transpile entry-points in sub-directories (esm)", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			writeWorkerSource({ basePath: "./src" });
 			mockUploadWorkerRequest({ expectedEntry: "var foo = 100;" });
 			mockSubDomainRequest();
@@ -1310,7 +1310,7 @@ export default{
 		});
 
 		it("should preserve exports on a module format worker", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			fs.writeFileSync(
 				"index.js",
 				`
@@ -1349,7 +1349,7 @@ export default {};`
 		});
 
 		it("should not preserve exports on a service-worker format worker", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			fs.writeFileSync(
 				"index.js",
 				`
@@ -1384,7 +1384,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should be able to transpile entry-points in sub-directories (sw)", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			writeWorkerSource({ basePath: "./src", type: "sw" });
 			mockUploadWorkerRequest({
 				expectedEntry: "var foo = 100;",
@@ -1405,7 +1405,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it('should error if a site definition doesn\'t have a "bucket" field', async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				// @ts-expect-error we're intentionally setting an invalid config
 				site: {},
 			});
@@ -1415,7 +1415,7 @@ addEventListener('fetch', event => {});`
 
 			await expect(runWrangler("publish ./index.js")).rejects
 				.toThrowErrorMatchingInlineSnapshot(`
-			              "Processing wrangler.toml configuration:
+			              "Processing ${configName} configuration:
 			                - \\"site.bucket\\" is a required field."
 		            `);
 
@@ -1424,14 +1424,14 @@ addEventListener('fetch', event => {});`
 			        [32mIf you think this is a bug then please create an issue at https://github.com/cloudflare/wrangler2/issues/new/choose[0m"
 		      `);
 			expect(std.err).toMatchInlineSnapshot(`
-			        "[31mX [41;31m[[41;97mERROR[41;31m][0m [1mProcessing wrangler.toml configuration:[0m
+			        "[31mX [41;31m[[41;97mERROR[41;31m][0m [1mProcessing ${configName} configuration:[0m
 
 			            - \\"site.bucket\\" is a required field.
 
 			        "
 		      `);
 			expect(normalizeSlashes(std.warn)).toMatchInlineSnapshot(`
-			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			            - Because you've defined a [site] configuration, we're defaulting to \\"workers-site\\" for the
 			          deprecated \`site.entry-point\`field.
@@ -1454,7 +1454,7 @@ addEventListener('fetch', event => {});`
 				id: "__test-name-workers_sites_assets-id",
 			};
 
-			writeWranglerToml({
+			writeWranglerConfig({
 				site: {
 					"entry-point": "./index.js",
 					bucket: "assets",
@@ -1483,7 +1483,7 @@ addEventListener('fetch', event => {});`
 			Published test-name (TIMINGS)
 			  https://test-name.test-sub-domain.workers.dev
 			Current Deployment ID: undefined",
-			  "warn": "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			  "warn": "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			    - [1mDeprecation[0m: \\"site.entry-point\\":
 			      Delete the \`site.entry-point\` field, then add the top level \`main\` field to your configuration
@@ -1508,7 +1508,7 @@ addEventListener('fetch', event => {});`
 			};
 			fs.mkdirSync("my-site");
 			process.chdir("my-site");
-			writeWranglerToml({
+			writeWranglerConfig({
 				site: {
 					bucket: "assets",
 					"entry-point": "my-entry",
@@ -1523,7 +1523,7 @@ addEventListener('fetch', event => {});`
 			mockListKVNamespacesRequest(kvNamespace);
 			mockKeyListRequest(kvNamespace.id, []);
 			mockUploadAssetsToKVRequest(kvNamespace.id, assets);
-			await runWrangler("publish --config ./my-site/wrangler.toml");
+			await runWrangler(`publish --config ./my-site/${configName}`);
 
 			expect(std.out).toMatchInlineSnapshot(`
 			"Reading file-1.txt...
@@ -1539,7 +1539,7 @@ addEventListener('fetch', event => {});`
 		`);
 			expect(std.err).toMatchInlineSnapshot(`""`);
 			expect(normalizeSlashes(std.warn)).toMatchInlineSnapshot(`
-			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing my-site/wrangler.toml configuration:[0m
+			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing my-site/${configName} configuration:[0m
 
 			            - [1mDeprecation[0m: \\"site.entry-point\\":
 			              Delete the \`site.entry-point\` field, then add the top level \`main\` field to your configuration
@@ -1553,7 +1553,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should error if both main and site.entry-point are specified", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "some-entry",
 				site: {
 					bucket: "some-bucket",
@@ -1563,7 +1563,7 @@ addEventListener('fetch', event => {});`
 
 			await expect(runWrangler("publish")).rejects
 				.toThrowErrorMatchingInlineSnapshot(`
-			              "Processing wrangler.toml configuration:
+			              "Processing ${configName} configuration:
 			                - Don't define both the \`main\` and \`site.entry-point\` fields in your configuration.
 			                  They serve the same purpose: to point to the entry-point of your worker.
 			                  Delete the deprecated \`site.entry-point\` field from your config."
@@ -1571,7 +1571,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should error if there is no entry-point specified", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			writeWorkerSource();
 			mockUploadWorkerRequest();
 			mockSubDomainRequest();
@@ -1649,7 +1649,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -1688,7 +1688,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 			});
 			writeWorkerSource();
@@ -1724,7 +1724,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should error when trying to use --assets with a service-worker Worker", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 			});
 			writeWorkerSource({ type: "sw" });
@@ -1750,7 +1750,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should error if --assets and --site are used together", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 			});
 			writeWorkerSource();
@@ -1774,7 +1774,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should error if --assets and config.site are used together", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "xyz",
@@ -1801,7 +1801,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should error if config.assets and --site are used together", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				// @ts-expect-error we allow string inputs here
 				assets: "abc",
@@ -1821,7 +1821,7 @@ addEventListener('fetch', event => {});`
 			        ",
 			          "out": "
 			        [32mIf you think this is a bug then please create an issue at https://github.com/cloudflare/wrangler2/issues/new/choose[0m",
-			          "warn": "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			          "warn": "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			            - \\"assets\\" fields are experimental and may change or break at any time.
 
@@ -1831,7 +1831,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should error if config.assets and config.site are used together", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				// @ts-expect-error we allow string inputs here
 				assets: "abc",
@@ -1854,7 +1854,7 @@ addEventListener('fetch', event => {});`
 			        ",
 			          "out": "
 			        [32mIf you think this is a bug then please create an issue at https://github.com/cloudflare/wrangler2/issues/new/choose[0m",
-			          "warn": "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			          "warn": "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			            - \\"assets\\" fields are experimental and may change or break at any time.
 
@@ -1864,7 +1864,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should warn if --assets is used", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 			});
 			const assets = [
@@ -1909,7 +1909,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should warn if config.assets is used", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				// @ts-expect-error we allow string inputs here
 				assets: "./assets",
@@ -1948,7 +1948,7 @@ addEventListener('fetch', event => {});`
 			Published test-name (TIMINGS)
 			  https://test-name.test-sub-domain.workers.dev
 			Current Deployment ID: undefined",
-			  "warn": "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			  "warn": "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			    - \\"assets\\" fields are experimental and may change or break at any time.
 
@@ -1966,7 +1966,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2018,7 +2018,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2076,7 +2076,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2129,7 +2129,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-some-env-workers_sites_assets",
 				id: "__test-name-some-env-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2179,7 +2179,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-some-env-workers_sites_assets",
 				id: "__test-name-some-env-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2229,7 +2229,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2273,7 +2273,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2314,7 +2314,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2355,7 +2355,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2397,7 +2397,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2439,7 +2439,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2481,7 +2481,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2529,7 +2529,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2577,7 +2577,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2622,7 +2622,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2667,7 +2667,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2766,7 +2766,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2806,7 +2806,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				site: {
 					bucket: "assets",
@@ -2866,7 +2866,7 @@ addEventListener('fetch', event => {});`
 				id: "__test-name-workers_sites_assets-id",
 			};
 
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./src/index.js",
 				site: {
 					bucket: "assets",
@@ -2912,7 +2912,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should use the relative path from current working directory to Worker directory when using `--site`", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 			});
 			const assets = [
@@ -2963,7 +2963,7 @@ addEventListener('fetch', event => {});`
 				title: "__test-name-workers_sites_assets",
 				id: "__test-name-workers_sites_assets-id",
 			};
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 			});
 			writeWorkerSource();
@@ -3002,7 +3002,7 @@ addEventListener('fetch', event => {});`
 
 	describe("workers_dev setting", () => {
 		it("should publish to a workers.dev domain if workers_dev is undefined", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			writeWorkerSource();
 			mockUploadWorkerRequest();
 			mockSubDomainRequest();
@@ -3020,7 +3020,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should publish to the workers.dev domain if workers_dev is `true`", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				workers_dev: true,
 			});
 			writeWorkerSource();
@@ -3041,7 +3041,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should not try to enable the workers.dev domain if it has been enabled before", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				workers_dev: true,
 			});
 			writeWorkerSource();
@@ -3061,7 +3061,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should disable the workers.dev domain if workers_dev is `false`", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				workers_dev: false,
 			});
 			writeWorkerSource();
@@ -3080,7 +3080,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should not try to disable the workers.dev domain if it is not already available", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				workers_dev: false,
 			});
 			writeWorkerSource();
@@ -3101,7 +3101,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should disable the workers.dev domain if workers_dev is undefined but overwritten to `false` in environment", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				env: {
 					dev: {
 						workers_dev: false,
@@ -3126,7 +3126,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should disable the workers.dev domain if workers_dev is `true` but overwritten to `false` in environment", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				workers_dev: true,
 				env: {
 					dev: {
@@ -3152,7 +3152,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should publish to a workers.dev domain if workers_dev is undefined but overwritten to `true` in environment", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				env: {
 					dev: {
 						workers_dev: true,
@@ -3179,7 +3179,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should publish to a workers.dev domain if workers_dev is `false` but overwritten to `true` in environment", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				workers_dev: false,
 				env: {
 					dev: {
@@ -3207,7 +3207,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should use the global compatibility_date and compatibility_flags if they are not overwritten by the environment", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				compatibility_date: "2022-01-12",
 				compatibility_flags: ["no_global_navigator"],
 				env: {
@@ -3236,7 +3236,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should use the environment specific compatibility_date and compatibility_flags", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				compatibility_date: "2022-01-12",
 				compatibility_flags: ["no_global_navigator"],
 				env: {
@@ -3268,7 +3268,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should use the command line --compatibility-date and --compatibility-flags if they are specified", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				compatibility_date: "2022-01-12",
 				compatibility_flags: ["no_global_navigator"],
 				env: {
@@ -3344,7 +3344,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should enable the workers.dev domain if workers_dev is undefined and subdomain is not already available", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			writeWorkerSource();
 			mockUploadWorkerRequest({ available_on_subdomain: false });
 			mockSubDomainRequest();
@@ -3363,7 +3363,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should enable the workers.dev domain if workers_dev is true and subdomain is not already available", async () => {
-			writeWranglerToml({ workers_dev: true });
+			writeWranglerConfig({ workers_dev: true });
 			writeWorkerSource();
 			mockUploadWorkerRequest({ available_on_subdomain: false });
 			mockSubDomainRequest();
@@ -3382,7 +3382,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should offer to create a new workers.dev subdomain when publishing to workers_dev without one", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				workers_dev: true,
 			});
 			writeWorkerSource();
@@ -3402,7 +3402,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should not deploy to workers.dev if there are any routes defined", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				routes: ["http://example.com/*"],
 			});
 			writeWorkerSource();
@@ -3426,7 +3426,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should not deploy to workers.dev if there are any routes defined (environments)", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				routes: ["http://example.com/*"],
 				env: {
 					production: {
@@ -3461,7 +3461,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should not deploy to workers.dev if there are any routes defined (only in environments)", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				env: {
 					production: {
 						routes: ["http://production.example.com/*"],
@@ -3495,7 +3495,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("can deploy to both workers.dev and routes if both defined ", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				workers_dev: true,
 				routes: ["http://example.com/*"],
 			});
@@ -3523,7 +3523,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("can deploy to both workers.dev and routes if both defined (environments: 1)", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				workers_dev: true,
 				env: {
 					production: {
@@ -3559,7 +3559,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("can deploy to both workers.dev and routes if both defined (environments: 2)", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				env: {
 					production: {
 						workers_dev: true,
@@ -3595,7 +3595,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("will deploy only to routes when workers_dev is false (environments 1) ", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				workers_dev: false,
 				env: {
 					production: {
@@ -3630,7 +3630,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("will deploy only to routes when workers_dev is false (environments 2) ", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				env: {
 					production: {
 						workers_dev: false,
@@ -3667,7 +3667,7 @@ addEventListener('fetch', event => {});`
 
 	describe("[define]", () => {
 		it("should be able to define values that will be substituted into top-level identifiers", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "index.js",
 				define: {
 					abc: "123",
@@ -3707,7 +3707,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("can be overriden in environments", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "index.js",
 				define: {
 					abc: "123",
@@ -3739,7 +3739,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("can be overridden with cli args", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "index.js",
 				define: {
 					abc: "123",
@@ -3761,7 +3761,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("can be overridden with cli args containing colons", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "index.js",
 				define: {
 					abc: "123",
@@ -3792,7 +3792,7 @@ addEventListener('fetch', event => {});`
 			global.setTimeout.mockRestore();
 		});
 		it("should run a custom build before publishing", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				build: {
 					command: `node -e "console.log('custom build'); require('fs').writeFileSync('index.js', 'export default { fetch(){ return new Response(123) } }')"`,
 				},
@@ -3818,7 +3818,7 @@ addEventListener('fetch', event => {});`
 
 		if (process.platform !== "win32") {
 			it("should run a custom build of multiple steps combined by && before publishing", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					build: {
 						command: `echo "custom build" && echo "export default { fetch(){ return new Response(123) } }" > index.js`,
 					},
@@ -3844,7 +3844,7 @@ addEventListener('fetch', event => {});`
 		}
 
 		it("should throw an error if the entry doesn't exist after the build finishes", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "index.js",
 				build: {
 					command: `node -e "console.log('custom build');"`,
@@ -3872,7 +3872,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should throw an error if the entry is a directory after the build finishes", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./",
 				build: {
 					command: `node -e "console.log('custom build');"`,
@@ -3918,7 +3918,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should minify the script when `--minify` is true (sw)", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 			});
 			fs.writeFileSync(
@@ -3949,7 +3949,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should minify the script when `minify` in config is true (esm)", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "./index.js",
 				legacy_env: false,
 				env: {
@@ -3991,7 +3991,7 @@ addEventListener('fetch', event => {});`
 
 	describe("durable object migrations", () => {
 		it("should warn when you try to publish durable objects without migrations", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				durable_objects: {
 					bindings: [{ name: "SOMENAME", class_name: "SomeClass" }],
 				},
@@ -4015,7 +4015,7 @@ addEventListener('fetch', event => {});`
 		`);
 			expect(std.err).toMatchInlineSnapshot(`""`);
 			expect(std.warn).toMatchInlineSnapshot(`
-			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			            - In wrangler.toml, you have configured [durable_objects] exported by this Worker (SomeClass),
 			          but no [migrations] for them. This may not work as expected until you add a [migrations] section
@@ -4036,7 +4036,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("does not warn if all the durable object bindings are to external classes", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				durable_objects: {
 					bindings: [
 						{
@@ -4069,7 +4069,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should publish all migrations on first publish", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				durable_objects: {
 					bindings: [
 						{ name: "SOMENAME", class_name: "SomeClass" },
@@ -4114,7 +4114,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should upload migrations past a previously uploaded tag", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				durable_objects: {
 					bindings: [
 						{ name: "SOMENAME", class_name: "SomeClass" },
@@ -4166,7 +4166,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should not send migrations if they've all already been sent", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				durable_objects: {
 					bindings: [
 						{ name: "SOMENAME", class_name: "SomeClass" },
@@ -4212,7 +4212,7 @@ addEventListener('fetch', event => {});`
 
 		describe("service environments", () => {
 			it("should publish all migrations on first publish", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					durable_objects: {
 						bindings: [
 							{ name: "SOMENAME", class_name: "SomeClass" },
@@ -4255,7 +4255,7 @@ addEventListener('fetch', event => {});`
 		`);
 				expect(std.err).toMatchInlineSnapshot(`""`);
 				expect(std.warn).toMatchInlineSnapshot(`
-			          "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			          "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			              - Experimental: Service environments are in beta, and their behaviour is guaranteed to change in
 			            the future. DO NOT USE IN PRODUCTION.
@@ -4265,7 +4265,7 @@ addEventListener('fetch', event => {});`
 			});
 
 			it("should publish all migrations on first publish (--env)", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					durable_objects: {
 						bindings: [
 							{ name: "SOMENAME", class_name: "SomeClass" },
@@ -4319,7 +4319,7 @@ addEventListener('fetch', event => {});`
 		`);
 				expect(std.err).toMatchInlineSnapshot(`""`);
 				expect(std.warn).toMatchInlineSnapshot(`
-			          "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			          "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			              - Experimental: Service environments are in beta, and their behaviour is guaranteed to change in
 			            the future. DO NOT USE IN PRODUCTION.
@@ -4330,7 +4330,7 @@ addEventListener('fetch', event => {});`
 
 			it("should use a script's current migration tag when publishing migrations", async () => {
 				unsetAllMocks();
-				writeWranglerToml({
+				writeWranglerConfig({
 					durable_objects: {
 						bindings: [
 							{ name: "SOMENAME", class_name: "SomeClass" },
@@ -4383,7 +4383,7 @@ addEventListener('fetch', event => {});`
 			Published test-name (TIMINGS)
 			  https://test-name.test-sub-domain.workers.dev
 			Current Deployment ID: undefined",
-			  "warn": "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			  "warn": "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			    - Experimental: Service environments are in beta, and their behaviour is guaranteed to change in
 			  the future. DO NOT USE IN PRODUCTION.
@@ -4394,7 +4394,7 @@ addEventListener('fetch', event => {});`
 			});
 
 			it("should use an environment's current migration tag when publishing migrations", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					durable_objects: {
 						bindings: [
 							{ name: "SOMENAME", class_name: "SomeClass" },
@@ -4453,7 +4453,7 @@ addEventListener('fetch', event => {});`
 			Published test-name (xyz) (TIMINGS)
 			  https://xyz.test-name.test-sub-domain.workers.dev
 			Current Deployment ID: undefined",
-			  "warn": "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			  "warn": "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			    - Experimental: Service environments are in beta, and their behaviour is guaranteed to change in
 			  the future. DO NOT USE IN PRODUCTION.
@@ -4467,7 +4467,7 @@ addEventListener('fetch', event => {});`
 
 	describe("bindings", () => {
 		it("should allow bindings with different names", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				migrations: [
 					{
 						tag: "v1",
@@ -4692,7 +4692,7 @@ addEventListener('fetch', event => {});`
 		`);
 			expect(std.err).toMatchInlineSnapshot(`""`);
 			expect(std.warn).toMatchInlineSnapshot(`
-			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			            - \\"unsafe\\" fields are experimental and may change or break at any time.
 
@@ -4701,7 +4701,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should error when bindings of different types have the same name", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				durable_objects: {
 					bindings: [
 						{
@@ -4779,7 +4779,7 @@ addEventListener('fetch', event => {});`
 
 			await expect(runWrangler("publish index.js")).rejects
 				.toMatchInlineSnapshot(`
-						              [Error: Processing wrangler.toml configuration:
+						              [Error: Processing ${configName} configuration:
 						                - CONFLICTING_NAME_ONE assigned to Durable Object, KV Namespace, and R2 Bucket bindings.
 						                - CONFLICTING_NAME_TWO assigned to Durable Object and KV Namespace bindings.
 						                - CONFLICTING_NAME_THREE assigned to R2 Bucket, Text Blob, Unsafe, Environment Variable, WASM Module, and Data Blob bindings.
@@ -4792,7 +4792,7 @@ addEventListener('fetch', event => {});`
 			        [32mIf you think this is a bug then please create an issue at https://github.com/cloudflare/wrangler2/issues/new/choose[0m"
 		      `);
 			expect(std.err).toMatchInlineSnapshot(`
-			        "[31mX [41;31m[[41;97mERROR[41;31m][0m [1mProcessing wrangler.toml configuration:[0m
+			        "[31mX [41;31m[[41;97mERROR[41;31m][0m [1mProcessing ${configName} configuration:[0m
 
 			            - CONFLICTING_NAME_ONE assigned to Durable Object, KV Namespace, and R2 Bucket bindings.
 			            - CONFLICTING_NAME_TWO assigned to Durable Object and KV Namespace bindings.
@@ -4805,7 +4805,7 @@ addEventListener('fetch', event => {});`
 			        "
 		      `);
 			expect(std.warn).toMatchInlineSnapshot(`
-			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			            - \\"unsafe\\" fields are experimental and may change or break at any time.
 
@@ -4814,7 +4814,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should error when bindings of the same type have the same name", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				durable_objects: {
 					bindings: [
 						{
@@ -4888,7 +4888,7 @@ addEventListener('fetch', event => {});`
 
 			await expect(runWrangler("publish index.js")).rejects
 				.toMatchInlineSnapshot(`
-						              [Error: Processing wrangler.toml configuration:
+						              [Error: Processing ${configName} configuration:
 						                - CONFLICTING_DURABLE_OBJECT_NAME assigned to multiple Durable Object bindings.
 						                - CONFLICTING_KV_NAMESPACE_NAME assigned to multiple KV Namespace bindings.
 						                - CONFLICTING_R2_BUCKET_NAME assigned to multiple R2 Bucket bindings.
@@ -4902,7 +4902,7 @@ addEventListener('fetch', event => {});`
 			        [32mIf you think this is a bug then please create an issue at https://github.com/cloudflare/wrangler2/issues/new/choose[0m"
 		      `);
 			expect(std.err).toMatchInlineSnapshot(`
-			        "[31mX [41;31m[[41;97mERROR[41;31m][0m [1mProcessing wrangler.toml configuration:[0m
+			        "[31mX [41;31m[[41;97mERROR[41;31m][0m [1mProcessing ${configName} configuration:[0m
 
 			            - CONFLICTING_DURABLE_OBJECT_NAME assigned to multiple Durable Object bindings.
 			            - CONFLICTING_KV_NAMESPACE_NAME assigned to multiple KV Namespace bindings.
@@ -4915,7 +4915,7 @@ addEventListener('fetch', event => {});`
 			        "
 		      `);
 			expect(std.warn).toMatchInlineSnapshot(`
-			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			            - \\"unsafe\\" fields are experimental and may change or break at any time.
 
@@ -4924,7 +4924,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should error correctly when bindings of the same and different types use the same name", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				durable_objects: {
 					bindings: [
 						{
@@ -5040,7 +5040,7 @@ addEventListener('fetch', event => {});`
 
 			await expect(runWrangler("publish index.js")).rejects
 				.toMatchInlineSnapshot(`
-						              [Error: Processing wrangler.toml configuration:
+						              [Error: Processing ${configName} configuration:
 						                - CONFLICTING_DURABLE_OBJECT_NAME assigned to multiple Durable Object bindings.
 						                - CONFLICTING_KV_NAMESPACE_NAME assigned to multiple KV Namespace bindings.
 						                - CONFLICTING_R2_BUCKET_NAME assigned to multiple R2 Bucket bindings.
@@ -5056,7 +5056,7 @@ addEventListener('fetch', event => {});`
 			        [32mIf you think this is a bug then please create an issue at https://github.com/cloudflare/wrangler2/issues/new/choose[0m"
 		      `);
 			expect(std.err).toMatchInlineSnapshot(`
-			        "[31mX [41;31m[[41;97mERROR[41;31m][0m [1mProcessing wrangler.toml configuration:[0m
+			        "[31mX [41;31m[[41;97mERROR[41;31m][0m [1mProcessing ${configName} configuration:[0m
 
 			            - CONFLICTING_DURABLE_OBJECT_NAME assigned to multiple Durable Object bindings.
 			            - CONFLICTING_KV_NAMESPACE_NAME assigned to multiple KV Namespace bindings.
@@ -5073,7 +5073,7 @@ addEventListener('fetch', event => {});`
 			        "
 		      `);
 			expect(std.warn).toMatchInlineSnapshot(`
-			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			            - \\"unsafe\\" fields are experimental and may change or break at any time.
 
@@ -5083,7 +5083,7 @@ addEventListener('fetch', event => {});`
 
 		describe("[wasm_modules]", () => {
 			it("should be able to define wasm modules for service-worker format workers", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					wasm_modules: {
 						TESTWASMNAME: "./path/to/test.wasm",
 					},
@@ -5115,7 +5115,7 @@ addEventListener('fetch', event => {});`
 			});
 
 			it("should error when defining wasm modules for modules format workers", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					wasm_modules: {
 						TESTWASMNAME: "./path/to/test.wasm",
 					},
@@ -5143,17 +5143,15 @@ addEventListener('fetch', event => {});`
 
 			it("should resolve wasm modules relative to the wrangler.toml file", async () => {
 				fs.mkdirSync("./path/to/and/the/path/to/", { recursive: true });
-				fs.writeFileSync(
-					"./path/to/wrangler.toml",
-					TOML.stringify({
+				writeWranglerConfig(
+					{
 						compatibility_date: "2022-01-12",
 						name: "test-name",
 						wasm_modules: {
 							TESTWASMNAME: "./and/the/path/to/test.wasm",
 						},
-					}),
-
-					"utf-8"
+					},
+					"./path/to"
 				);
 
 				writeWorkerSource({ type: "sw" });
@@ -5170,7 +5168,7 @@ addEventListener('fetch', event => {});`
 					expectedCompatibilityDate: "2022-01-12",
 				});
 				mockSubDomainRequest();
-				await runWrangler("publish index.js --config ./path/to/wrangler.toml");
+				await runWrangler(`publish index.js --config ./path/to/${configName}`);
 				expect(std.out).toMatchInlineSnapshot(`
 			"Total Upload: xx KiB / gzip: xx KiB
 			Your worker has access to the following bindings:
@@ -5186,7 +5184,7 @@ addEventListener('fetch', event => {});`
 			});
 
 			it("should be able to import .wasm modules from service-worker format workers", async () => {
-				writeWranglerToml();
+				writeWranglerConfig();
 				fs.writeFileSync(
 					"./index.js",
 					"import TESTWASMNAME from './test.wasm';"
@@ -5222,7 +5220,7 @@ addEventListener('fetch', event => {});`
 
 		describe("[text_blobs]", () => {
 			it("should be able to define text blobs for service-worker format workers", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					text_blobs: {
 						TESTTEXTBLOBNAME: "./path/to/text.file",
 					},
@@ -5258,7 +5256,7 @@ addEventListener('fetch', event => {});`
 			});
 
 			it("should error when defining text blobs for modules format workers", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					text_blobs: {
 						TESTTEXTBLOBNAME: "./path/to/text.file",
 					},
@@ -5286,17 +5284,15 @@ addEventListener('fetch', event => {});`
 
 			it("should resolve text blobs relative to the wrangler.toml file", async () => {
 				fs.mkdirSync("./path/to/and/the/path/to/", { recursive: true });
-				fs.writeFileSync(
-					"./path/to/wrangler.toml",
-					TOML.stringify({
+				writeWranglerConfig(
+					{
 						compatibility_date: "2022-01-12",
 						name: "test-name",
 						text_blobs: {
 							TESTTEXTBLOBNAME: "./and/the/path/to/text.file",
 						},
-					}),
-
-					"utf-8"
+					},
+					"./path/to"
 				);
 
 				writeWorkerSource({ type: "sw" });
@@ -5317,7 +5313,7 @@ addEventListener('fetch', event => {});`
 					expectedCompatibilityDate: "2022-01-12",
 				});
 				mockSubDomainRequest();
-				await runWrangler("publish index.js --config ./path/to/wrangler.toml");
+				await runWrangler(`publish index.js --config ./path/to/${configName}`);
 				expect(std.out).toMatchInlineSnapshot(`
 			"Total Upload: xx KiB / gzip: xx KiB
 			Your worker has access to the following bindings:
@@ -5335,7 +5331,7 @@ addEventListener('fetch', event => {});`
 
 		describe("[data_blobs]", () => {
 			it("should be able to define data blobs for service-worker format workers", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					data_blobs: {
 						TESTDATABLOBNAME: "./path/to/data.bin",
 					},
@@ -5371,7 +5367,7 @@ addEventListener('fetch', event => {});`
 			});
 
 			it("should error when defining data blobs for modules format workers", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					data_blobs: {
 						TESTDATABLOBNAME: "./path/to/data.bin",
 					},
@@ -5399,17 +5395,15 @@ addEventListener('fetch', event => {});`
 
 			it("should resolve data blobs relative to the wrangler.toml file", async () => {
 				fs.mkdirSync("./path/to/and/the/path/to/", { recursive: true });
-				fs.writeFileSync(
-					"./path/to/wrangler.toml",
-					TOML.stringify({
+				writeWranglerConfig(
+					{
 						compatibility_date: "2022-01-12",
 						name: "test-name",
 						data_blobs: {
 							TESTDATABLOBNAME: "./and/the/path/to/data.bin",
 						},
-					}),
-
-					"utf-8"
+					},
+					"./path/to"
 				);
 
 				writeWorkerSource({ type: "sw" });
@@ -5430,7 +5424,7 @@ addEventListener('fetch', event => {});`
 					expectedCompatibilityDate: "2022-01-12",
 				});
 				mockSubDomainRequest();
-				await runWrangler("publish index.js --config ./path/to/wrangler.toml");
+				await runWrangler(`publish index.js --config ./path/to/${configName}`);
 				expect(std.out).toMatchInlineSnapshot(`
 			"Total Upload: xx KiB / gzip: xx KiB
 			Your worker has access to the following bindings:
@@ -5448,7 +5442,7 @@ addEventListener('fetch', event => {});`
 
 		describe("[vars]", () => {
 			it("should support json bindings", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					vars: {
 						text: "plain ol' string",
 						count: 1,
@@ -5490,7 +5484,7 @@ addEventListener('fetch', event => {});`
 			});
 
 			it("should read vars passed as cli arguments", async () => {
-				writeWranglerToml();
+				writeWranglerConfig();
 				writeWorkerSource();
 				mockSubDomainRequest();
 				mockUploadWorkerRequest();
@@ -5516,7 +5510,7 @@ addEventListener('fetch', event => {});`
 
 		describe("[r2_buckets]", () => {
 			it("should support r2 bucket bindings", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					r2_buckets: [{ binding: "FOO", bucket_name: "foo-bucket" }],
 				});
 				writeWorkerSource();
@@ -5547,7 +5541,7 @@ addEventListener('fetch', event => {});`
 			it("should support logfwdr bindings", async () => {
 				fs.writeFileSync("./message.capnp.compiled", "compiled capnp messages");
 
-				writeWranglerToml({
+				writeWranglerConfig({
 					logfwdr: {
 						schema: "./message.capnp.compiled",
 						bindings: [
@@ -5598,7 +5592,7 @@ addEventListener('fetch', event => {});`
 
 		describe("[durable_objects]", () => {
 			it("should support durable object bindings", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					durable_objects: {
 						bindings: [
 							{
@@ -5643,7 +5637,7 @@ addEventListener('fetch', event => {});`
 			});
 
 			it("should support service-workers binding to external durable objects", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					durable_objects: {
 						bindings: [
 							{
@@ -5684,7 +5678,7 @@ addEventListener('fetch', event => {});`
 			});
 
 			it("should support module workers implementing durable objects", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					durable_objects: {
 						bindings: [
 							{
@@ -5730,7 +5724,7 @@ addEventListener('fetch', event => {});`
 			});
 
 			it("should error when detecting a service-worker worker implementing durable objects", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					durable_objects: {
 						bindings: [
 							{
@@ -5756,7 +5750,7 @@ addEventListener('fetch', event => {});`
 
 		describe("[services]", () => {
 			it("should support service bindings", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					services: [
 						{
 							binding: "FOO",
@@ -5791,7 +5785,7 @@ addEventListener('fetch', event => {});`
 		`);
 				expect(std.err).toMatchInlineSnapshot(`""`);
 				expect(std.warn).toMatchInlineSnapshot(`
-			          "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			          "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			              - \\"services\\" fields are experimental and may change or break at any time.
 
@@ -5802,7 +5796,7 @@ addEventListener('fetch', event => {});`
 
 		describe("[analytics_engine_datasets]", () => {
 			it("should support analytics engine bindings", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					analytics_engine_datasets: [
 						{ binding: "FOO", dataset: "foo-dataset" },
 					],
@@ -5833,7 +5827,7 @@ addEventListener('fetch', event => {});`
 
 		describe("[dispatch_namespaces]", () => {
 			it("should support bindings to a dispatch namespace", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					dispatch_namespaces: [
 						{
 							binding: "foo",
@@ -5865,7 +5859,7 @@ addEventListener('fetch', event => {});`
 		`);
 				expect(std.err).toMatchInlineSnapshot(`""`);
 				expect(std.warn).toMatchInlineSnapshot(`
-			"[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			"[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			    - \\"dispatch_namespaces\\" fields are experimental and may change or break at any time.
 
@@ -5876,7 +5870,7 @@ addEventListener('fetch', event => {});`
 
 		describe("[unsafe]", () => {
 			it("should warn if using unsafe bindings", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					unsafe: {
 						bindings: [
 							{
@@ -5912,7 +5906,7 @@ addEventListener('fetch', event => {});`
 		`);
 				expect(std.err).toMatchInlineSnapshot(`""`);
 				expect(std.warn).toMatchInlineSnapshot(`
-			          "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			          "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			              - \\"unsafe\\" fields are experimental and may change or break at any time.
 
@@ -5920,7 +5914,7 @@ addEventListener('fetch', event => {});`
 		        `);
 			});
 			it("should warn if using unsafe bindings already handled by wrangler", async () => {
-				writeWranglerToml({
+				writeWranglerConfig({
 					unsafe: {
 						bindings: [
 							{
@@ -5956,7 +5950,7 @@ addEventListener('fetch', event => {});`
 		`);
 				expect(std.err).toMatchInlineSnapshot(`""`);
 				expect(std.warn).toMatchInlineSnapshot(`
-			          "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			          "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			              - \\"unsafe\\" fields are experimental and may change or break at any time.
 			              - \\"unsafe.bindings[0]\\": {\\"name\\":\\"my-binding\\",\\"type\\":\\"plain_text\\",\\"text\\":\\"text\\"}
@@ -5973,7 +5967,7 @@ addEventListener('fetch', event => {});`
 
 	describe("upload rules", () => {
 		it("should be able to define rules for uploading non-js modules (sw)", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				rules: [{ type: "Text", globs: ["**/*.file"], fallthrough: true }],
 			});
 			fs.writeFileSync("./index.js", `import TEXT from './text.file';`);
@@ -6006,7 +6000,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should be able to define rules for uploading non-js modules (esm)", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				rules: [{ type: "Text", globs: ["**/*.file"], fallthrough: true }],
 			});
 			fs.writeFileSync(
@@ -6036,7 +6030,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should log a deprecation warning when using `build.upload.rules`", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				build: {
 					upload: {
 						rules: [{ type: "Text", globs: ["**/*.file"], fallthrough: true }],
@@ -6067,7 +6061,7 @@ addEventListener('fetch', event => {});`
 		`);
 			expect(std.err).toMatchInlineSnapshot(`""`);
 			expect(std.warn).toMatchInlineSnapshot(`
-			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing wrangler.toml configuration:[0m
+			        "[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ${configName} configuration:[0m
 
 			            - Deprecation: The \`build.upload.rules\` config field is no longer used, the rules should be
 			          specified via the \`rules\` config field. Delete the \`build.upload\` field from the configuration
@@ -6084,7 +6078,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should be able to use fallthrough:true for multiple rules", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				rules: [
 					{ type: "Text", globs: ["**/*.file"], fallthrough: true },
 					{ type: "Text", globs: ["**/*.other"], fallthrough: true },
@@ -6120,7 +6114,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should be able to use fallthrough:false for multiple rules", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				rules: [
 					{ type: "Text", globs: ["**/*.file"], fallthrough: false },
 					{ type: "Text", globs: ["**/*.other"] },
@@ -6147,7 +6141,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should warn when multiple rules for the same type do not have fallback defined", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				rules: [
 					{ type: "Text", globs: ["**/*.file"] },
 					{ type: "Text", globs: ["**/*.other"] },
@@ -6192,7 +6186,7 @@ addEventListener('fetch', event => {});`
 				process.env.NODE_ENV = actualProcessEnvNodeEnv;
 			});
 			it("should replace `process.env.NODE_ENV` in scripts", async () => {
-				writeWranglerToml();
+				writeWranglerConfig();
 				fs.writeFileSync(
 					"./index.js",
 					`export default {
@@ -6221,7 +6215,7 @@ addEventListener('fetch', event => {});`
 
 	describe("legacy module specifiers", () => {
 		it("should work with legacy module specifiers, with a deprecation warning (1)", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				rules: [{ type: "Text", globs: ["**/*.file"], fallthrough: false }],
 			});
 			fs.writeFileSync(
@@ -6253,7 +6247,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should work with legacy module specifiers, with a deprecation warning (2)", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			fs.writeFileSync(
 				"./index.js",
 				`import WASM from 'index.wasm'; export default {};`
@@ -6283,7 +6277,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should work with legacy module specifiers, with a deprecation warning (3)", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				rules: [{ type: "Text", globs: ["**/*.file"], fallthrough: false }],
 			});
 			fs.writeFileSync(
@@ -6343,7 +6337,7 @@ addEventListener('fetch', event => {});`
 
 	describe("tsconfig", () => {
 		it("should use compilerOptions.paths to resolve modules", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "index.ts",
 			});
 			fs.writeFileSync(
@@ -6383,7 +6377,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should output to target es2020 even if tsconfig says otherwise", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			writeWorkerSource();
 			fs.writeFileSync(
 				"tsconfig.json",
@@ -6416,7 +6410,7 @@ addEventListener('fetch', event => {});`
 
 	describe("--outdir", () => {
 		it("should generate built assets at --outdir if specified", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			writeWorkerSource();
 			mockSubDomainRequest();
 			mockUploadWorkerRequest();
@@ -6440,7 +6434,7 @@ addEventListener('fetch', event => {});`
 
 	describe("--dry-run", () => {
 		it("should not publish the worker if --dry-run is specified", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				// add a durable object with migrations
 				// to make sure we _don't_ fetch migration status
 				durable_objects: {
@@ -6468,7 +6462,7 @@ addEventListener('fetch', event => {});`
 
 	describe("--node-compat", () => {
 		it("should warn when using node compatibility mode", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			writeWorkerSource();
 			await runWrangler("publish index.js --node-compat --dry-run");
 			expect(std).toMatchInlineSnapshot(`
@@ -6485,7 +6479,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should recommend node compatibility mode when using node builtins and node-compat isn't enabled", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			fs.writeFileSync(
 				"index.js",
 				`
@@ -6508,7 +6502,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should polyfill node builtins when enabled", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			fs.writeFileSync(
 				"index.js",
 				`
@@ -6562,7 +6556,7 @@ addEventListener('fetch', event => {});`
         },
       };`
 			);
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "index.js",
 			});
 			mockSubDomainRequest();
@@ -6616,7 +6610,7 @@ addEventListener('fetch', event => {});`
         },
       };`
 			);
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "index.js",
 			});
 			mockSubDomainRequest();
@@ -6666,7 +6660,7 @@ addEventListener('fetch', event => {});`
 					]);
 				}
 			);
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "index.js",
 			});
 			mockSubDomainRequest();
@@ -6724,7 +6718,7 @@ addEventListener('fetch', event => {});`
 					]);
 				}
 			);
-			writeWranglerToml({
+			writeWranglerConfig({
 				main: "index.js",
 			});
 			mockSubDomainRequest();
@@ -6841,7 +6835,7 @@ addEventListener('fetch', event => {});`
 
 	describe("--no-bundle", () => {
 		it("(cli) should not transform the source code before publishing it", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			const scriptContent = `
       import X from '@cloudflare/no-such-package'; // let's add an import that doesn't exist
       const xyz = 123; // a statement that would otherwise be compiled out
@@ -6852,7 +6846,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("(config) should not transform the source code before publishing it", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				no_bundle: true,
 			});
 			const scriptContent = `
@@ -6867,7 +6861,7 @@ addEventListener('fetch', event => {});`
 
 	describe("--no-bundle --minify", () => {
 		it("should warn that no-bundle and minify can't be used together", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			const scriptContent = `
 			const xyz = 123; // a statement that would otherwise be compiled out
 		`;
@@ -6883,7 +6877,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should warn that no-bundle and minify can't be used together", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				no_bundle: true,
 				minify: true,
 			});
@@ -6902,7 +6896,7 @@ addEventListener('fetch', event => {});`
 
 	describe("--no-bundle --node-compat", () => {
 		it("should warn that no-bundle and node-compat can't be used together", async () => {
-			writeWranglerToml();
+			writeWranglerConfig();
 			const scriptContent = `
 			const xyz = 123; // a statement that would otherwise be compiled out
 		`;
@@ -6921,7 +6915,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should warn that no-bundle and node-compat can't be used together", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				no_bundle: true,
 				node_compat: true,
 			});
@@ -6944,7 +6938,7 @@ addEventListener('fetch', event => {});`
 	it("should publish if the last deployed source check fails", async () => {
 		unsetAllMocks();
 		writeWorkerSource();
-		writeWranglerToml();
+		writeWranglerConfig();
 		mockSubDomainRequest();
 		mockUploadWorkerRequest();
 		setMockResponse(
@@ -6981,7 +6975,7 @@ addEventListener('fetch', event => {});`
 	it("should not publish if there's any other kind of error when checking deployment source", async () => {
 		unsetAllMocks();
 		writeWorkerSource();
-		writeWranglerToml();
+		writeWranglerConfig();
 		mockSubDomainRequest();
 		mockUploadWorkerRequest();
 		setMockRawResponse(
@@ -7008,7 +7002,7 @@ addEventListener('fetch', event => {});`
 
 	describe("queues", () => {
 		it("should upload producer bindings", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				queues: {
 					producers: [{ binding: "QUEUE_ONE", queue: "queue1" }],
 				},
@@ -7040,7 +7034,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("should update queue consumers on publish", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				queues: {
 					consumers: [
 						{
@@ -7077,7 +7071,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("consumer should error when a queue doesn't exist", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				queues: {
 					producers: [],
 					consumers: [
@@ -7104,7 +7098,7 @@ addEventListener('fetch', event => {});`
 		});
 
 		it("producer should error when a queue doesn't exist", async () => {
-			writeWranglerToml({
+			writeWranglerConfig({
 				queues: {
 					producers: [{ queue: "queue1", binding: "QUEUE_ONE" }],
 					consumers: [],
@@ -7130,7 +7124,7 @@ addEventListener('fetch', event => {});`
 				CLOUDFLARE_ACCOUNT_ID: "some-account-id",
 			};
 			setIsTTY(false);
-			writeWranglerToml();
+			writeWranglerConfig();
 			writeWorkerSource();
 			mockSubDomainRequest();
 			mockUploadWorkerRequest({ keepVars: true });
@@ -7155,7 +7149,7 @@ addEventListener('fetch', event => {});`
 				CLOUDFLARE_ACCOUNT_ID: "some-account-id",
 			};
 			setIsTTY(false);
-			writeWranglerToml();
+			writeWranglerConfig();
 			writeWorkerSource();
 			mockSubDomainRequest();
 			mockUploadWorkerRequest();

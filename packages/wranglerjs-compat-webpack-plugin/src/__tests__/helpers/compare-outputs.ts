@@ -7,7 +7,7 @@ import { execa } from "execa";
 import { mockConsoleMethods } from "wrangler/src/__tests__/helpers/mock-console";
 import { runWrangler as runWrangler2 } from "wrangler/src/__tests__/helpers/run-wrangler";
 import { writeWorkerSource } from "wrangler/src/__tests__/helpers/write-worker-source";
-import writeWranglerToml from "wrangler/src/__tests__/helpers/write-wrangler-toml";
+import { writeWranglerToml } from "wrangler/src/__tests__/helpers/write-wrangler-toml";
 import { PATH_TO_PLUGIN } from "./constants";
 import { mockSubDomainRequest } from "./mock-subdomain-request";
 import { mockUploadWorkerRequest } from "./mock-upload-worker-request";

@@ -5,10 +5,16 @@ import { mockConfirm } from "./helpers/mock-dialogs";
 import { msw } from "./helpers/msw";
 import { runInTempDir } from "./helpers/run-in-tmp";
 import { runWrangler } from "./helpers/run-wrangler";
-import writeWranglerToml from "./helpers/write-wrangler-toml";
+import {
+	writeWranglerToml,
+	writeWranglerJson,
+} from "./helpers/write-wrangler-toml";
 import type { KVNamespaceInfo } from "../kv/helpers";
 
-describe("delete", () => {
+describe.each([
+	["wrangler.toml", writeWranglerToml],
+	["wrangler.json", writeWranglerJson],
+])("delete (%s)", (_, writeWranglerConfig) => {
 	mockAccountId();
 	mockApiToken();
 	runInTempDir();
@@ -39,7 +45,7 @@ describe("delete", () => {
 			text: `Are you sure you want to delete test-name? This action cannot be undone.`,
 			result: true,
 		});
-		writeWranglerToml();
+		writeWranglerConfig();
 		mockListKVNamespacesRequest();
 		mockDeleteWorkerRequest();
 		await runWrangler("delete");

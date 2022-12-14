@@ -8,7 +8,10 @@ import { unsetAllMocks } from "wrangler/src/__tests__/helpers/mock-cfetch";
 import { mockConsoleMethods } from "wrangler/src/__tests__/helpers/mock-console";
 import { runInTempDir } from "wrangler/src/__tests__/helpers/run-in-tmp";
 import { writeWorkerSource } from "wrangler/src/__tests__/helpers/write-worker-source";
-import writeWranglerToml from "wrangler/src/__tests__/helpers/write-wrangler-toml";
+import {
+	writeWranglerToml,
+	writeWranglerJson,
+} from "wrangler/src/__tests__/helpers/write-wrangler-toml";
 import { WranglerJsCompatWebpackPlugin } from "../";
 import { compareOutputs } from "./helpers/compare-outputs";
 import { installWrangler1 } from "./helpers/install-wrangler";
@@ -24,12 +27,15 @@ afterEach(() => {
 	unsetAllMocks();
 });
 
-describe("messaging", () => {
+describe.each([
+	["wrangler.toml", writeWranglerToml],
+	["wrangler.json", writeWranglerJson],
+])("messaging", (_, writeWranglerConfig) => {
 	const std = mockConsoleMethods();
 
 	it('warns if target is not "weborker"', async () => {
 		writeWorkerSource({ basePath: "." });
-		writeWranglerToml();
+		writeWranglerConfig();
 		const config: webpack.Configuration = {
 			entry: "./index.js",
 			plugins: [new WranglerJsCompatWebpackPlugin()],
