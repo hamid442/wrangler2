@@ -971,7 +971,7 @@ describe.each([
 			});
 			fs.writeFileSync("index.js", `export default {};`);
 			// Mock `getPort()` to resolve to a completely different port.
-			(getPort as jest.Mock).mockResolvedValue(98765);
+			(getPort as jest.Mock).mockResolvedValueOnce(98765);
 
 			await runWrangler("dev");
 			expect((Dev as jest.Mock).mock.calls[0][0].initialPort).toEqual(8888);
@@ -1005,7 +1005,7 @@ describe.each([
 			});
 			fs.writeFileSync("index.js", `export default {};`);
 			// Mock `getPort()` to resolve to a completely different port.
-			(getPort as jest.Mock).mockResolvedValue(98765);
+			(getPort as jest.Mock).mockResolvedValueOnce(98765);
 
 			await runWrangler("dev --port=9999");
 			expect((Dev as jest.Mock).mock.calls[0][0].initialPort).toEqual(9999);
@@ -1020,7 +1020,7 @@ describe.each([
 			});
 			fs.writeFileSync("index.js", `export default {};`);
 			// Mock `getPort()` to resolve to a completely different port.
-			(getPort as jest.Mock).mockResolvedValue(98765);
+			(getPort as jest.Mock).mockResolvedValueOnce(98765);
 
 			await runWrangler("dev");
 			expect((Dev as jest.Mock).mock.calls[0][0].initialPort).toEqual(98765);
