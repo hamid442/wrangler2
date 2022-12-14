@@ -17,15 +17,15 @@ import { mockGetMemberships } from "./helpers/mock-oauth-flow";
 import { mockProcess } from "./helpers/mock-process";
 import { runInTempDir } from "./helpers/run-in-tmp";
 import { runWrangler } from "./helpers/run-wrangler";
+import {
+	writeWranglerJson,
+	writeWranglerToml,
+} from "./helpers/write-wrangler-toml";
 import type {
 	KeyValue,
 	KVNamespaceInfo,
 	NamespaceKeyInfo,
 } from "../kv/helpers";
-import {
-	writeWranglerJson,
-	writeWranglerToml,
-} from "./helpers/write-wrangler-toml";
 
 function writeExact(
 	writer: typeof writeWranglerJson | typeof writeWranglerToml

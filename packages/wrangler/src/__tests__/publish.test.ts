@@ -2,7 +2,6 @@ import { Buffer } from "node:buffer";
 import { randomFillSync } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import * as TOML from "@iarna/toml";
 import * as esbuild from "esbuild";
 import {
 	printBundleSize,

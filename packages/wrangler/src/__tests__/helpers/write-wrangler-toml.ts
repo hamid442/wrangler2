@@ -1,7 +1,7 @@
 import * as fs from "fs";
+import path from "path";
 import TOML from "@iarna/toml";
 import type { RawConfig } from "../../config";
-import path from "path";
 
 /** Write a mock wrangler.toml file to disk. */
 export function writeWranglerToml(config: RawConfig = {}, prefix = ".") {
