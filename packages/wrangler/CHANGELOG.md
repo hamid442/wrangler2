@@ -1,5 +1,41 @@
 # wrangler
 
+## 2.6.3
+
+### Patch Changes
+
+- [#1869](https://github.com/cloudflare/wrangler2/pull/1869) [`917b07b0`](https://github.com/cloudflare/wrangler2/commit/917b07b0d7ee6cdfae2edfa21fe3056a4475dd44) Thanks [@petebacondarwin](https://github.com/petebacondarwin)! - feat: enable Wrangler to target the staging API by setting WRANGLER_API_ENVIRONMENT=staging
+
+  If you are developing Wrangler, or an internal Cloudflare feature, and during testing,
+  need Wrangler to target the staging API rather than production, it is now possible by
+  setting the `WRANGLER_API_ENVIRONMENT` environment variable to `staging`.
+
+  This will update all the necessary OAuth and API URLs, update the OAuth client ID, and
+  also (if necessary) acquire an Access token for to get through the firewall to the
+  staging URLs.
+
+* [#2377](https://github.com/cloudflare/wrangler2/pull/2377) [`32686e42`](https://github.com/cloudflare/wrangler2/commit/32686e42b055c786f9821bbd66dd33960ab8f4d1) Thanks [@mrbbot](https://github.com/mrbbot)! - Fix `ReferenceError` when using `wrangler dev --experimental-local` in Node 16
+
+- [#2393](https://github.com/cloudflare/wrangler2/pull/2393) [`a6d24732`](https://github.com/cloudflare/wrangler2/commit/a6d24732e2553e220222cba7b70d9f1607602203) Thanks [@mrbbot](https://github.com/mrbbot)! - Remove login requirement from `wrangler dev --experimental-local`
+
+* [#2392](https://github.com/cloudflare/wrangler2/pull/2392) [`7785591c`](https://github.com/cloudflare/wrangler2/commit/7785591c95281a85ffb61eb514b850144970c4b2) Thanks [@rozenmd](https://github.com/rozenmd)! - fix: improve `wrangler init --from-dash` help text and error handling
+
+- [#2391](https://github.com/cloudflare/wrangler2/pull/2391) [`19525a4b`](https://github.com/cloudflare/wrangler2/commit/19525a4b9ca8d26022510fef463d0169f704896e) Thanks [@mrbbot](https://github.com/mrbbot)! - Always log when delegating to local `wrangler` install.
+
+  When a global `wrangler` command is executed in a package directory with `wrangler` installed locally, the command is redirected to the local `wrangler` install.
+  We now always log a message when this happens, so you know what's going on.
+
+* [#2400](https://github.com/cloudflare/wrangler2/pull/2400) [`08a0b22e`](https://github.com/cloudflare/wrangler2/commit/08a0b22e3f7e5ed536b7537ee5e93c39544bcfa0) Thanks [@mrbbot](https://github.com/mrbbot)! - Cleanly exit `wrangler dev --experimental-local` when pressing `x`/`q`/`CTRL-C`
+
+- [#2374](https://github.com/cloudflare/wrangler2/pull/2374) [`ecba1ede`](https://github.com/cloudflare/wrangler2/commit/ecba1edea298b89cdffa4b68c924d879f0f0d13b) Thanks [@rozenmd](https://github.com/rozenmd)! - fix: make --from-dash error output clearer
+
+  This PR makes it clearer what --from-dash wants from you.
+
+  closes #2373
+  closes #2375
+
+* [#2377](https://github.com/cloudflare/wrangler2/pull/2377) [`32686e42`](https://github.com/cloudflare/wrangler2/commit/32686e42b055c786f9821bbd66dd33960ab8f4d1) Thanks [@mrbbot](https://github.com/mrbbot)! - Respect `FORCE_COLOR=0` environment variable to disable colored output when using `wrangler dev --local`
+
 ## 2.6.2
 
 ### Patch Changes
